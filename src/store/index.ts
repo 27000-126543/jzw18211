@@ -53,6 +53,7 @@ export interface AddUpdateData {
 export interface AddMessageData {
   orderId: string;
   senderId: string;
+  receiverId?: string;
   content: string;
   type?: 'text' | 'image';
 }
@@ -71,6 +72,7 @@ export interface AppStore {
   logout: () => void;
   createOrder: (orderData: CreateOrderData) => Order;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  updateProvider: (providerId: string, updates: Partial<Provider>) => void;
   addReview: (reviewData: AddReviewData) => Review;
   addUpdate: (updateData: AddUpdateData) => Update;
   addMessage: (messageData: AddMessageData) => Message;
@@ -106,7 +108,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       status: 'pending_confirm',
       createdAt: new Date().toISOString(),
       ...orderData,
-    };
+      totalAmount: orderData.totalAmount,
+      totalPrice: orderData.totalAmount,
+      depositAmount: orderData.depositAmount,
+      deposit: orderData.depositAmount,
+      balanceAmount: orderData.balanceAmount,
+    } as Order;
     set((state) => ({
       orders: [newOrder, ...state.orders],
     }));
@@ -117,6 +124,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       orders: state.orders.map((o) =>
         o.id === orderId ? { ...o, status } : o
+      ),
+    }));
+  },
+
+  updateProvider: (providerId: string, updates: Partial<Provider>) => {
+    set((state) => ({
+      providers: state.providers.map((p) =>
+        p.id === providerId ? { ...p, ...updates } : p
       ),
     }));
   },
@@ -153,6 +168,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       type: 'text',
       createdAt: new Date().toISOString(),
       ...messageData,
+      receiverId: messageData.receiverId || '',
+      read: false,
     };
     set((state) => ({
       messages: [...state.messages, newMessage],
@@ -170,9 +187,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   payBalance: (orderId: string) => {
     set((state) => ({
-      orders: state.orders.map((o) =>
-        o.id === orderId ? { ...o, status: 'completed' as OrderStatus } : o
-      ),
+      orders: state.orders.map((o) => {
+        if (o.id !== orderId) return o;
+        const total = Number((o as any).totalAmount ?? (o as any).totalPrice ?? 0);
+        return {
+          ...o,
+          status: 'completed' as OrderStatus,
+          balancePaidAt: new Date().toISOString(),
+          paidAmount: total,
+        } as Order;
+      }),
     }));
   },
 }));

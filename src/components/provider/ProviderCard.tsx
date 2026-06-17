@@ -1,7 +1,7 @@
 import { Star, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Provider } from '@/types';
-import { formatCurrency, getServiceLabel } from '@/utils/format';
+import { formatCurrency, getServiceLabel, getProviderName, getServiceDailyPrice } from '@/utils/format';
 import { cn } from '@/lib/utils';
 
 interface ProviderCardProps {
@@ -10,7 +10,8 @@ interface ProviderCardProps {
 
 export default function ProviderCard({ provider }: ProviderCardProps) {
   const navigate = useNavigate();
-  const minPrice = Math.min(...provider.services.map((s) => s.pricePerDay));
+  const providerName = getProviderName(provider);
+  const minPrice = Math.min(...provider.services.map((s) => getServiceDailyPrice(s)).filter((v) => v > 0));
   const serviceChips = provider.services.slice(0, 3);
 
   const handleClick = () => {
@@ -29,7 +30,7 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
           src={provider.photos[0]?.url}
-          alt={provider.businessName}
+          alt={providerName}
           className={cn(
             'h-full w-full object-cover transition-transform duration-500',
             'group-hover:scale-105'
@@ -45,7 +46,7 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-1 text-lg font-semibold text-gray-900 group-hover:text-brand-600">
-            {provider.businessName}
+            {providerName}
           </h3>
           <div className="flex shrink-0 items-center gap-1">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" />

@@ -7,6 +7,8 @@ import ConversationList, { type ConversationItem } from '@/components/chat/Conve
 import Card from '@/components/common/Card';
 import Input from '@/components/common/Input';
 import Empty from '@/components/Empty';
+import { getProviderName, normalizeAcceptedPets } from '@/utils/format';
+import { toSafeProvider } from '@/utils/provider';
 
 export default function Messages() {
   const { messages, orders, users, providers, pets, currentUser, addMessage } = useAppStore();
@@ -57,10 +59,11 @@ export default function Messages() {
       if (isOwner) {
         const provider = providers.find((p) => p.id === group.otherId);
         if (provider) {
-          const pUser = users.find((u) => u.id === provider.userId);
+          const safe = toSafeProvider(provider);
+          const pUser = users.find((u) => u.id === provider.userId || u.id === (provider as any).ownerId);
           otherUser = {
             id: provider.id,
-            name: provider.businessName,
+            name: safe.displayName,
             avatar: (pUser as any)?.avatar || '',
             online: true,
           };
@@ -111,13 +114,8 @@ export default function Messages() {
 
   const activeMessages = useMemo(() => {
     if (!activeConversation || !currentUser) return [] as any[];
-    const otherId = activeConversation.otherUser.id;
     return messages
-      .filter(
-        (m) =>
-          (m.senderId === currentUser.id && m.receiverId === otherId) ||
-          (m.senderId === otherId && m.receiverId === currentUser.id)
-      ) as any[];
+      .filter(m => m.orderId === activeConversation.orderId) as any[];
   }, [messages, activeConversation, currentUser]);
 
   const handleSend = (content: string) => {
@@ -125,6 +123,7 @@ export default function Messages() {
     addMessage({
       orderId: activeConversation.orderId,
       senderId: currentUser.id,
+      receiverId: activeConversation.otherUser.id,
       content,
     });
   };

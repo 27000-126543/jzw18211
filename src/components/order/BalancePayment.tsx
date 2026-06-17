@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Order } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, getOrderTotal, getOrderDeposit, getOrderBalance } from '@/utils/format';
 
 interface BalancePaymentProps {
   order: Order;
@@ -58,6 +58,10 @@ export default function BalancePayment({ order, onPay }: BalancePaymentProps) {
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
 
+  const total = getOrderTotal(order);
+  const deposit = getOrderDeposit(order);
+  const balance = getOrderBalance(order);
+
   const handlePay = async () => {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 1500));
@@ -74,7 +78,7 @@ export default function BalancePayment({ order, onPay }: BalancePaymentProps) {
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">支付成功</h3>
         <p className="text-sm text-gray-500 mb-6">
-          尾款 {formatCurrency(order.balanceAmount)} 已支付完成
+          尾款 {formatCurrency(balance)} 已支付完成
         </p>
         <div className="bg-forest-50 rounded-xl p-4 max-w-xs mx-auto">
           <div className="text-xs text-gray-500 mb-1">订单号</div>
@@ -93,20 +97,20 @@ export default function BalancePayment({ order, onPay }: BalancePaymentProps) {
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">订单总价</span>
             <span className="text-gray-900 font-medium">
-              {formatCurrency(order.totalAmount)}
+              {formatCurrency(total)}
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">已付定金</span>
             <span className="text-forest-600 font-medium">
-              - {formatCurrency(order.depositAmount)}
+              - {formatCurrency(deposit)}
             </span>
           </div>
           <div className="h-px bg-brand-200/60" />
           <div className="flex items-center justify-between">
             <span className="text-gray-800 font-medium">应付尾款</span>
             <span className="text-2xl font-bold text-brand-600">
-              {formatCurrency(order.balanceAmount)}
+              {formatCurrency(balance)}
             </span>
           </div>
         </div>
@@ -178,7 +182,7 @@ export default function BalancePayment({ order, onPay }: BalancePaymentProps) {
         ) : (
           <>
             <CreditCard className="w-5 h-5" />
-            <span>立即支付 {formatCurrency(order.balanceAmount)}</span>
+            <span>立即支付 {formatCurrency(balance)}</span>
           </>
         )}
       </button>

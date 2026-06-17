@@ -9,6 +9,8 @@ interface PriceBreakdownProps {
   serviceType?: ServiceType;
 }
 
+const round2 = (x: number) => Math.round(x * 100) / 100;
+
 export default function PriceBreakdown({
   dailyPrice,
   daysCount,
@@ -17,11 +19,11 @@ export default function PriceBreakdown({
 }: PriceBreakdownProps) {
   const label = serviceLabel || (serviceType ? getServiceLabel(serviceType) : '服务');
 
-  const serviceTotal = dailyPrice * daysCount;
-  const platformFee = Math.round(serviceTotal * 0.05 * 100) / 100;
-  const totalAmount = serviceTotal + platformFee;
-  const deposit = Math.round(totalAmount * 0.3 * 100) / 100;
-  const balance = Math.round((totalAmount - deposit) * 100) / 100;
+  const serviceTotal = round2(dailyPrice * daysCount);
+  const platformFee = round2(serviceTotal * 0.05);
+  const totalAmount = round2(serviceTotal + platformFee);
+  const deposit = round2(totalAmount * 0.3);
+  const balance = round2(totalAmount - deposit);
 
   const Row = ({
     name,

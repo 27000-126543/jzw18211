@@ -31,7 +31,8 @@ import DateTimePicker, {
 } from '@/components/booking/DateTimePicker';
 import PetForm, { type PetFormData } from '@/components/booking/PetForm';
 import PriceBreakdown from '@/components/booking/PriceBreakdown';
-import { formatCurrency, getServiceLabel } from '@/utils/format';
+import { formatCurrency, getServiceLabel, getServiceDailyPrice, getProviderName } from '@/utils/format';
+import { toSafeProvider, getSafeServicePrice } from '@/utils/provider';
 import { formatDate, getDaysBetween } from '@/utils/date';
 import { cn } from '@/lib/utils';
 
@@ -73,6 +74,8 @@ export default function Booking() {
     () => providers.find((p) => p.id === providerId),
     [providers, providerId]
   );
+  const safeProvider = useMemo(() => provider ? toSafeProvider(provider) : null, [provider]);
+  const providerDisplayName = safeProvider?.displayName || '';
 
   const userPets = useMemo(() => {
     if (!currentUser) return [];
@@ -98,7 +101,7 @@ export default function Booking() {
   });
 
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
-    provider?.services[0]?.id || ''
+    safeProvider?.services?.[0]?.id || ''
   );
   const [selectedRange, setSelectedRange] = useState<SelectedRange>({});
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot>('fullday');
@@ -110,8 +113,8 @@ export default function Booking() {
   const [createdOrderId, setCreatedOrderId] = useState<string>('');
 
   const selectedService = useMemo(() => {
-    return provider?.services.find((s) => s.id === selectedServiceId);
-  }, [provider, selectedServiceId]);
+    return safeProvider?.services?.find((s: any) => s.id === selectedServiceId);
+  }, [safeProvider, selectedServiceId]);
 
   const selectedPet = useMemo(() => {
     if (petMode === 'existing') {
@@ -158,12 +161,13 @@ export default function Booking() {
     return isStep1Valid && isStep2Valid && agreedToTerms;
   }, [isStep1Valid, isStep2Valid, agreedToTerms]);
 
+  const dailyPrice = useMemo(() => getServiceDailyPrice(selectedService), [selectedService]);
+
   const totalAmount = useMemo(() => {
-    const dailyPrice = selectedService?.dailyPrice || 0;
     const serviceTotal = dailyPrice * Math.max(daysCount, 1);
     const platformFee = Math.round(serviceTotal * 0.05 * 100) / 100;
-    return serviceTotal + platformFee;
-  }, [selectedService, daysCount]);
+    return Math.round((serviceTotal + platformFee) * 100) / 100;
+  }, [dailyPrice, daysCount]);
 
   const depositAmount = useMemo(() => {
     return Math.round(totalAmount * 0.3 * 100) / 100;
@@ -223,7 +227,7 @@ export default function Booking() {
 
       const orderData: CreateOrderData = {
         ownerId: currentUser.id,
-        providerId: provider.id,
+        providerId: safeProvider?.id || provider.id,
         petId: finalPetId,
         serviceId: selectedService.id,
         serviceType: selectedService.type,
@@ -237,7 +241,11 @@ export default function Booking() {
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const newOrder = createOrder(orderData);
+      const newOrder = createOrder({
+        ...orderData,
+        totalPrice: totalAmount,
+        deposit: depositAmount,
+      } as any);
 
       setCreatedOrderId(newOrder.id);
       setShowSuccess(true);
@@ -442,7 +450,7 @@ export default function Booking() {
           选择服务类型
         </h3>
         <div className="space-y-4">
-          {provider.services.map((service) => {
+          {safeProvider?.services?.map((service: any) => {
             const Icon = serviceIconMap[service.type];
             const isSelected = selectedServiceId === service.id;
             return (
@@ -538,10 +546,10 @@ export default function Booking() {
             <div className="flex-1 min-w-0">
               <div className="text-xs text-gray-500 mb-0.5">商家</div>
               <div className="font-semibold text-gray-900">
-                {provider.name}
+                {providerDisplayName}
               </div>
               <div className="text-xs text-gray-500 mt-1 line-clamp-1">
-                {provider.address}
+                {safeProvider?.address}
               </div>
             </div>
           </div>
@@ -596,7 +604,7 @@ export default function Booking() {
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   {selectedService
-                    ? formatCurrency(selectedService.dailyPrice) + '/天'
+                    ? formatCurrency(dailyPrice) + '/天'
                     : ''}
                 </div>
               </div>
@@ -643,7 +651,7 @@ export default function Booking() {
 
       {selectedService && (
         <PriceBreakdown
-          dailyPrice={selectedService.dailyPrice}
+          dailyPrice={dailyPrice}
           daysCount={Math.max(daysCount, 1)}
           serviceType={selectedService.type}
         />
@@ -713,7 +721,7 @@ export default function Booking() {
             to={`/providers/${provider.id}`}
             className="hover:text-brand-600 transition-colors truncate"
           >
-            {provider.name}
+            {providerDisplayName}
           </Link>
           <ChevronRight className="w-4 h-4" />
           <span className="text-gray-900 font-medium">预约下单</span>
@@ -729,7 +737,7 @@ export default function Booking() {
                 预约下单
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                预约「{provider.name}」的宠物服务
+                预约「{providerDisplayName}」的宠物服务
               </p>
             </div>
           </div>
@@ -798,7 +806,7 @@ export default function Booking() {
                           服务小计
                         </span>
                         <span className="text-sm font-medium text-gray-900 tabular-nums">
-                          {formatCurrency(selectedService.dailyPrice)} × {daysCount}
+                          {formatCurrency(dailyPrice)} × {daysCount}
                         </span>
                       </div>
                     )}

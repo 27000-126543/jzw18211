@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarDays, Building2, PawPrint, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Order, Provider, Pet } from '@/types';
-import { getStatusColor, getStatusLabel, getServiceLabel, formatCurrency } from '@/utils/format';
+import { getStatusColor, getStatusLabel, getServiceLabel, formatCurrency, getProviderName, getOrderTotal } from '@/utils/format';
 import { formatDate } from '@/utils/date';
 
 interface OrderCardProps {
@@ -45,7 +45,7 @@ export default function OrderCard({ order, provider, pet }: OrderCardProps) {
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-gray-900">
-            {formatCurrency(order.totalAmount)}
+            {formatCurrency(getOrderTotal(order))}
           </div>
           <div className="text-xs text-gray-400 mt-0.5">总金额</div>
         </div>
@@ -55,7 +55,7 @@ export default function OrderCard({ order, provider, pet }: OrderCardProps) {
         {provider && (
           <div className="flex items-center gap-2.5 text-sm text-gray-600">
             <Building2 className="w-4 h-4 text-brand-500 shrink-0" />
-            <span className="truncate">{provider.name}</span>
+            <span className="truncate">{getProviderName(provider)}</span>
           </div>
         )}
 

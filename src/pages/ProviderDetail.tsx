@@ -23,7 +23,8 @@ import PhotoGallery from '@/components/provider/PhotoGallery';
 import ServiceCard from '@/components/provider/ServiceCard';
 import AvailabilityCalendar from '@/components/provider/AvailabilityCalendar';
 import ReviewList from '@/components/provider/ReviewList';
-import { formatCurrency, getServiceLabel } from '@/utils/format';
+import { formatCurrency, getServiceLabel, getServiceDailyPrice, getProviderName, normalizeAcceptedPets } from '@/utils/format';
+import { toSafeProvider, getSafeServicePrice } from '@/utils/provider';
 import { getDaysBetween } from '@/utils/date';
 import { cn } from '@/lib/utils';
 
@@ -57,17 +58,18 @@ export default function ProviderDetail() {
     () => providers.find((p) => p.id === id),
     [providers, id]
   );
+  const safeProvider = useMemo(() => provider ? toSafeProvider(provider) : null, [provider]);
 
   const galleryPhotos = useMemo(() => {
-    if (!provider) return [];
-    return provider.photos.map((p, idx) => ({
+    if (!safeProvider) return [];
+    return safeProvider.photos.map((p, idx) => ({
       id: p.id,
       providerId: id || '',
       url: p.url,
       caption: p.caption,
       uploadedAt: new Date(Date.now() - idx * 86400000).toISOString(),
     }));
-  }, [provider, id]);
+  }, [safeProvider, id]);
 
   const providerReviews = useMemo(
     () =>
@@ -93,14 +95,14 @@ export default function ProviderDetail() {
   }, [pets, currentUser]);
 
   const [selectedServiceType, setSelectedServiceType] = useState<ServiceType>(
-    provider?.services[0]?.type || 'boarding'
+    safeProvider?.services[0]?.type || 'boarding'
   );
   const [selectedRange, setSelectedRange] = useState<SelectedRange>({});
   const [petCount, setPetCount] = useState(1);
 
   const selectedService = useMemo<Service | undefined>(() => {
-    return provider?.services.find((s) => s.type === selectedServiceType);
-  }, [provider, selectedServiceType]);
+    return safeProvider?.services.find((s) => s.type === selectedServiceType);
+  }, [safeProvider, selectedServiceType]);
 
   const daysCount = useMemo(() => {
     if (selectedRange.start && selectedRange.end) {
@@ -110,14 +112,14 @@ export default function ProviderDetail() {
   }, [selectedRange]);
 
   const estimatedPrice = useMemo(() => {
-    const dailyPrice = selectedService?.dailyPrice || 0;
+    const dailyPrice = selectedService ? getSafeServicePrice(selectedService) : 0;
     const days = daysCount > 0 ? daysCount : 1;
     const serviceTotal = dailyPrice * days * petCount;
     const platformFee = Math.round(serviceTotal * 0.05 * 100) / 100;
     return serviceTotal + platformFee;
   }, [selectedService, daysCount, petCount]);
 
-  if (!provider) {
+  if (!safeProvider) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -131,16 +133,16 @@ export default function ProviderDetail() {
   }
 
   const handleQuickBooking = () => {
-    navigate(`/booking/${provider.id}`);
+    navigate(`/booking/${safeProvider.id}`);
   };
 
   const handleNavigate = () => {
-    const url = `https://maps.google.com/?q=${provider.latitude},${provider.longitude}`;
+    const url = `https://maps.google.com/?q=${safeProvider.latitude},${safeProvider.longitude}`;
     window.open(url, '_blank');
   };
 
   const handleContact = () => {
-    navigate(`/chat/${provider.id}`);
+    navigate(`/chat/${safeProvider.id}`);
   };
 
   return (
@@ -163,7 +165,7 @@ export default function ProviderDetail() {
           </Link>
           <ChevronRight className="w-4 h-4" />
           <span className="text-gray-900 font-medium truncate">
-            {provider.name}
+            {safeProvider.displayName}
           </span>
         </nav>
 
@@ -173,8 +175,8 @@ export default function ProviderDetail() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
-                    {provider.name}
-                    {provider.rating >= 4.8 && (
+                    {safeProvider.displayName}
+                    {safeProvider.rating >= 4.8 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
                         ⭐ 优质商家
                       </span>
@@ -183,12 +185,12 @@ export default function ProviderDetail() {
 
                   <div className="flex flex-wrap items-center gap-4 mt-3">
                     <div className="flex items-center gap-2">
-                      <StarRating value={provider.rating} size="sm" />
+                      <StarRating value={safeProvider.rating} size="sm" />
                       <span className="text-sm font-medium text-gray-900">
-                        {provider.rating.toFixed(1)}
+                        {safeProvider.rating.toFixed(1)}
                       </span>
                       <span className="text-sm text-gray-500">
-                        ({provider.reviewCount}条评价)
+                        ({safeProvider.reviewCount}条评价)
                       </span>
                     </div>
                   </div>
@@ -222,7 +224,7 @@ export default function ProviderDetail() {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-gray-500 mb-0.5">门店地址</div>
                     <div className="text-sm text-gray-900 line-clamp-2">
-                      {provider.address}
+                      {safeProvider.address}
                     </div>
                   </div>
                   <button
@@ -241,7 +243,7 @@ export default function ProviderDetail() {
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">营业时间</div>
                     <div className="text-sm text-gray-900 font-medium">
-                      {provider.businessHours}
+                      {safeProvider.businessHours}
                     </div>
                   </div>
                 </div>
@@ -262,7 +264,7 @@ export default function ProviderDetail() {
                 <h2 className="text-lg font-semibold text-gray-900">关于我们</h2>
               </div>
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                {provider.description}
+                {safeProvider.description}
               </p>
             </section>
 
@@ -272,7 +274,7 @@ export default function ProviderDetail() {
                 <h2 className="text-lg font-semibold text-gray-900">服务项目与价格</h2>
               </div>
               <div className="space-y-4">
-                {provider.services.map((service) => {
+                {safeProvider.services.map((service) => {
                   const Icon = serviceIconMap[service.type];
                   const isSelected = selectedServiceType === service.type;
                   return (
@@ -305,7 +307,7 @@ export default function ProviderDetail() {
                             </h4>
                             <div className="shrink-0 text-right">
                               <span className="text-lg font-bold text-brand-600">
-                                {formatCurrency(service.dailyPrice)}
+                                {formatCurrency(getSafeServicePrice(service))}
                               </span>
                               <span className="text-xs text-gray-400">/天</span>
                             </div>
@@ -349,7 +351,7 @@ export default function ProviderDetail() {
                 <div>
                   <div className="text-sm text-gray-500 mb-2">宠物类型</div>
                   <div className="flex flex-wrap gap-2">
-                    {provider.acceptedPets.species.map((species) => {
+                    {safeProvider.acceptedPets.species.map((species) => {
                       const info = speciesLabelMap[species] || {
                         label: species,
                         emoji: '🐾',
@@ -371,18 +373,18 @@ export default function ProviderDetail() {
                   <div>
                     <div className="text-sm text-gray-500">最多同时接收</div>
                     <div className="text-xl font-bold text-gray-900 mt-1">
-                      {provider.acceptedPets.maxCount}
+                      {safeProvider.acceptedPets.maxCount}
                       <span className="text-sm font-normal text-gray-500 ml-1">
                         只
                       </span>
                     </div>
                   </div>
-                  {provider.acceptedPets.breedRestrictions &&
-                    provider.acceptedPets.breedRestrictions.length > 0 && (
+                  {safeProvider.acceptedPets.breedRestrictions &&
+                    safeProvider.acceptedPets.breedRestrictions.length > 0 && (
                       <div className="text-right">
                         <div className="text-sm text-gray-500">暂不接受品种</div>
                         <div className="text-sm font-medium text-red-600 mt-1">
-                          {provider.acceptedPets.breedRestrictions.join('、')}
+                          {safeProvider.acceptedPets.breedRestrictions.join('、')}
                         </div>
                       </div>
                     )}
@@ -396,7 +398,7 @@ export default function ProviderDetail() {
                 <h2 className="text-lg font-semibold text-gray-900">空位日历</h2>
               </div>
               <AvailabilityCalendar
-                provider={provider}
+                provider={safeProvider.raw}
                 selectedRange={selectedRange}
                 onSelectRange={setSelectedRange}
               />
@@ -427,7 +429,7 @@ export default function ProviderDetail() {
                       {(['daycare', 'home_visit', 'boarding'] as ServiceType[]).map(
                         (type) => {
                           const Icon = serviceIconMap[type];
-                          const hasService = provider.services.some(
+                          const hasService = safeProvider.services.some(
                             (s) => s.type === type
                           );
                           const isSelected = selectedServiceType === type;
@@ -523,7 +525,7 @@ export default function ProviderDetail() {
                       <button
                         onClick={() =>
                           setPetCount((c) =>
-                            Math.min(provider.acceptedPets.maxCount, c + 1)
+                            Math.min(safeProvider.acceptedPets.maxCount, c + 1)
                           )
                         }
                         className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"

@@ -29,8 +29,9 @@ import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Avatar from '@/components/common/Avatar';
-import type { ServiceType, PetSpecies } from '@/types';
-import { getServiceLabel } from '@/utils/format';
+import type { ServiceType, PetSpecies, Service, EnvPhoto } from '@/types';
+import { getServiceLabel, getProviderName, normalizeAcceptedPets, getServiceDailyPrice } from '@/utils/format';
+import { toSafeProvider, getSafeServicePrice } from '@/utils/provider';
 
 type SettingsTab = 'basic' | 'service' | 'pet' | 'photos' | 'security';
 
@@ -63,50 +64,52 @@ const PHOTO_PLACEHOLDERS = [
 ];
 
 export default function DashboardSettings() {
-  const { providers, users, currentUser } = useAppStore();
+  const { providers, users, currentUser, updateProvider } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('basic');
   const [showSuccess, setShowSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const currentProvider = useMemo(() => {
-    return providers.find((p) => p.userId === currentUser?.id) || providers[0];
+  const rawProvider = useMemo(() => {
+    return providers.find(p => p.userId === currentUser?.id) || providers[0];
   }, [providers, currentUser]);
+  const safeProvider = useMemo(() => rawProvider ? toSafeProvider(rawProvider) : null, [rawProvider]);
 
   const providerUser = useMemo(() => {
-    return users.find((u) => u.id === currentProvider?.userId);
-  }, [users, currentProvider]);
+    return users.find((u) => u.id === safeProvider?.userId);
+  }, [users, safeProvider]);
 
   const [basicInfo, setBasicInfo] = useState({
-    businessName: currentProvider?.businessName || '',
-    address: currentProvider?.address || '',
-    city: currentProvider?.city || '',
+    businessName: safeProvider?.displayName || '',
+    address: safeProvider?.address || '',
+    city: safeProvider?.city || '',
     openTime: '08:00',
     closeTime: '20:00',
     phone: (providerUser as any)?.phone || '',
     email: providerUser?.email || '',
-    description: currentProvider?.description || '',
+    description: safeProvider?.description || '',
   });
 
   const [serviceConfig, setServiceConfig] = useState(
     SERVICE_TYPES.map((type) => {
-      const service = currentProvider?.services?.find((s) => s.type === type);
+      const service = safeProvider?.services?.find((s: any) => s.type === type);
       return {
         type,
         enabled: !!service,
-        price: service?.pricePerDay || 0,
+        price: service ? getServiceDailyPrice(service) : 0,
         description: service?.description || '',
       };
     })
   );
 
+  const petCfg = normalizeAcceptedPets(safeProvider?.acceptedPets);
   const [petConfig, setPetConfig] = useState({
-    acceptedSpecies: currentProvider?.acceptedPets || ([] as PetSpecies[]),
-    maxPets: currentProvider?.maxPets || 5,
-    breedRestriction: '',
+    acceptedSpecies: petCfg.species as PetSpecies[],
+    maxPets: petCfg.maxCount,
+    breedRestriction: petCfg.breedRestrictions.join('、'),
   });
 
   const [photos, setPhotos] = useState(
-    currentProvider?.photos?.map((p, idx) => ({
+    safeProvider?.photos?.map((p, idx) => ({
       ...p,
       caption: p.caption || `环境照片 ${idx + 1}`,
     })) || []
@@ -123,7 +126,48 @@ export default function DashboardSettings() {
 
   const handleSave = async () => {
     setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 800));
+
+    const servicesToSave: Service[] = serviceConfig
+      .filter(s => s.enabled)
+      .map((s, idx) => ({
+        id: `service_${Date.now()}_${idx}`,
+        providerId: safeProvider?.id || '',
+        type: s.type,
+        description: s.description,
+        dailyPrice: s.price,
+        pricePerDay: s.price,
+      }));
+
+    const acceptedPetsToSave = {
+      species: petConfig.acceptedSpecies,
+      maxCount: petConfig.maxPets,
+      maxPets: petConfig.maxPets,
+      breedRestrictions: petConfig.breedRestriction ? petConfig.breedRestriction.split(/[、,，]/).map(s => s.trim()).filter(Boolean) : [],
+      acceptedSpecies: petConfig.acceptedSpecies,
+    };
+
+    if (safeProvider?.id) {
+      updateProvider(safeProvider.id, {
+        businessName: basicInfo.businessName,
+        name: basicInfo.businessName,
+        address: basicInfo.address,
+        city: basicInfo.city,
+        businessHours: `${basicInfo.openTime} - ${basicInfo.closeTime}`,
+        description: basicInfo.description,
+        services: servicesToSave,
+        acceptedPets: acceptedPetsToSave,
+        photos: photos.map((p, idx) => ({
+          id: p.id,
+          providerId: safeProvider.id,
+          url: p.url,
+          caption: p.caption,
+          sortOrder: idx,
+          uploadedAt: p.uploadedAt || new Date().toISOString(),
+        })),
+      });
+    }
+
     setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
@@ -164,7 +208,7 @@ export default function DashboardSettings() {
       ...photos,
       {
         id: `photo_new_${Date.now()}`,
-        providerId: currentProvider?.id || '',
+        providerId: safeProvider?.id || '',
         url: PHOTO_PLACEHOLDERS[newIdx % PHOTO_PLACEHOLDERS.length],
         caption: `环境照片 ${newIdx + 1}`,
         uploadedAt: new Date().toISOString(),
@@ -754,7 +798,7 @@ export default function DashboardSettings() {
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-semibold text-gray-900 mb-0.5">平台认证</h4>
                           <p className="text-xs text-gray-500 mb-3">
-                            {currentProvider?.certified ? (
+                            {safeProvider?.certified ? (
                               <span className="inline-flex items-center gap-1 text-forest-600">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> 已通过认证
                               </span>
@@ -762,8 +806,8 @@ export default function DashboardSettings() {
                               '尚未完成认证'
                             )}
                           </p>
-                          <Button size="sm" variant="outline" disabled={currentProvider?.certified}>
-                            {currentProvider?.certified ? '已认证' : '去认证'}
+                          <Button size="sm" variant="outline" disabled={safeProvider?.certified}>
+                            {safeProvider?.certified ? '已认证' : '去认证'}
                           </Button>
                         </div>
                       </div>

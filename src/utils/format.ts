@@ -49,3 +49,44 @@ export const getStatusColor = (status: OrderStatus): string => {
 export const generateOrderNo = (): string => {
   return 'PB' + Date.now().toString().slice(-10);
 };
+
+export const getProviderName = (provider: any): string => {
+  return provider?.businessName || provider?.name || '未命名商家';
+};
+
+export const getServiceDailyPrice = (service: any): number => {
+  return Number(service?.dailyPrice ?? service?.pricePerDay ?? 0);
+};
+
+export const getOrderTotal = (order: any): number => {
+  return Number(order?.totalAmount ?? order?.totalPrice ?? 0);
+};
+
+export const getOrderDeposit = (order: any): number => {
+  return Number(order?.depositAmount ?? order?.deposit ?? 0);
+};
+
+export const getOrderBalance = (order: any): number => {
+  if (typeof order?.balanceAmount === 'number') return order.balanceAmount;
+  const total = getOrderTotal(order);
+  const dep = getOrderDeposit(order);
+  return Math.round((total - dep) * 100) / 100;
+};
+
+export const normalizeAcceptedPets = (acceptedPets: any): {
+  species: string[];
+  maxCount: number;
+  breedRestrictions: string[];
+} => {
+  if (!acceptedPets) {
+    return { species: [], maxCount: 5, breedRestrictions: [] };
+  }
+  if (Array.isArray(acceptedPets)) {
+    return { species: acceptedPets, maxCount: 5, breedRestrictions: [] };
+  }
+  return {
+    species: acceptedPets.species || acceptedPets.acceptedSpecies || [],
+    maxCount: acceptedPets.maxCount || acceptedPets.maxPets || 5,
+    breedRestrictions: acceptedPets.breedRestrictions || acceptedPets.breedRestriction || [],
+  };
+};

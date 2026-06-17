@@ -28,7 +28,8 @@ import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Avatar from '@/components/common/Avatar';
 import StarRating from '@/components/common/StarRating';
-import { getServiceLabel, getStatusLabel, getStatusColor, formatCurrency } from '@/utils/format';
+import { getServiceLabel, getStatusLabel, getStatusColor, formatCurrency, getOrderTotal, getOrderDeposit, getOrderBalance, getProviderName, getServiceDailyPrice } from '@/utils/format';
+import { toSafeProvider } from '@/utils/provider';
 import { formatDateTime, formatDate, getDaysBetween } from '@/utils/date';
 import type { Order } from '@/types';
 
@@ -42,22 +43,34 @@ export default function OrderDetail() {
 
   const order = useMemo(() => orders.find((o) => o.id === id), [orders, id]);
   const provider = useMemo(() => providers.find((p) => p.id === order?.providerId), [providers, order]);
+  const safeProvider = useMemo(() => provider ? toSafeProvider(provider) : null, [provider]);
   const pet = useMemo(() => pets.find((p) => p.id === order?.petId), [pets, order]);
   const owner = useMemo(() => users.find((u) => u.id === order?.ownerId), [users, order]);
-  const providerUser = useMemo(() => users.find((u) => u.id === provider?.userId), [users, provider]);
+  const providerUser = useMemo(() => users.find((u) => u.id === safeProvider?.userId), [users, safeProvider]);
 
   const service = useMemo(() => provider?.services.find((s) => s.id === order?.serviceId), [provider, order]);
   const orderUpdates = useMemo(() => updates.filter((u) => (u as any).orderId === order?.id || u.providerId === order?.providerId), [updates, order]);
   const orderReview = useMemo(() => reviews.find((r) => r.orderId === order?.id), [reviews, order]);
 
+  const orderTotal = getOrderTotal(order);
+  const orderDeposit = getOrderDeposit(order);
+  const orderBalance = getOrderBalance(order);
+
+  const safeOrder = useMemo(() => {
+    if (!order) return null;
+    return {
+      ...order,
+      totalAmount: orderTotal,
+      depositAmount: orderDeposit,
+      balanceAmount: orderBalance,
+      totalPrice: orderTotal,
+      deposit: orderDeposit,
+    };
+  }, [order, orderTotal, orderDeposit, orderBalance]);
+
   const orderMessages = useMemo(() => {
     if (!order || !currentUser) return [];
-    const otherId = currentUser.role === 'owner' ? order.providerId : order.ownerId;
-    return messages.filter(
-      (m) =>
-        (m.senderId === currentUser.id && m.receiverId === otherId) ||
-        (m.senderId === otherId && m.receiverId === currentUser.id)
-    );
+    return messages.filter(m => m.orderId === order.id);
   }, [messages, order, currentUser]);
 
   const isProvider = currentUser?.role === 'provider';
@@ -97,6 +110,7 @@ export default function OrderDetail() {
     addMessage({
       orderId: order.id,
       senderId: currentUser.id,
+      receiverId,
       content,
     });
   };
@@ -127,7 +141,7 @@ export default function OrderDetail() {
   }
 
   const chatOtherUser = isOwner
-    ? { id: provider.id, name: provider.businessName, avatar: (providerUser as any)?.avatar || '', online: true }
+    ? { id: safeProvider?.id || '', name: safeProvider?.displayName || '', avatar: (providerUser as any)?.avatar || '', online: true }
     : { id: owner?.id || '', name: owner?.name || '', avatar: (owner as any)?.avatar || '', online: true };
 
   const days = getDaysBetween(order.startDate, order.endDate);
@@ -229,8 +243,8 @@ export default function OrderDetail() {
 
             <UpdateTimeline updates={orderUpdates} />
 
-            {isOwner && order.status === 'pending_balance' && !showPaymentSuccess && (
-              <BalancePayment order={order as any} onPay={handlePayBalance} />
+            {isOwner && order.status === 'pending_balance' && !showPaymentSuccess && safeOrder && (
+              <BalancePayment order={safeOrder as any} onPay={handlePayBalance} />
             )}
 
             {showPaymentSuccess && (
@@ -284,9 +298,9 @@ export default function OrderDetail() {
             <div className="lg:sticky lg:top-6 space-y-6">
               <Card hover>
                 <div className="flex items-start gap-4 mb-5">
-                  <Avatar size="lg" src={(providerUser as any)?.avatar} name={provider.businessName} />
+                  <Avatar size="lg" src={(providerUser as any)?.avatar} name={safeProvider?.displayName} />
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-gray-900 mb-1 truncate">{provider.businessName}</h3>
+                    <h3 className="text-base font-semibold text-gray-900 mb-1 truncate">{safeProvider?.displayName}</h3>
                     <div className="flex items-center gap-1.5 mb-2">
                       <div className="flex items-center gap-0.5">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -294,15 +308,15 @@ export default function OrderDetail() {
                             key={i}
                             className={cn(
                               'w-3.5 h-3.5',
-                              i < Math.floor(provider.rating) ? 'fill-amber-400 text-amber-400' : 'fill-gray-100 text-gray-200'
+                              i < Math.floor(safeProvider?.rating || 0) ? 'fill-amber-400 text-amber-400' : 'fill-gray-100 text-gray-200'
                             )}
                           />
                         ))}
                       </div>
-                      <span className="text-sm font-medium text-amber-600">{provider.rating}</span>
-                      <span className="text-xs text-gray-400">({provider.reviewCount}条评价)</span>
+                      <span className="text-sm font-medium text-amber-600">{safeProvider?.rating}</span>
+                      <span className="text-xs text-gray-400">({safeProvider?.reviewCount}条评价)</span>
                     </div>
-                    {provider.certified && (
+                    {safeProvider?.certified && (
                       <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 text-xs font-medium">
                         <CheckCircle2 className="w-3 h-3" />
                         平台认证
@@ -316,7 +330,7 @@ export default function OrderDetail() {
                     <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-gray-400 mb-0.5">地址</div>
-                      <div className="text-sm text-gray-700">{provider.address}</div>
+                      <div className="text-sm text-gray-700">{safeProvider?.address}</div>
                     </div>
                   </div>
                   <div className="flex items-start gap-2.5">
@@ -429,11 +443,11 @@ export default function OrderDetail() {
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500">{service?.name || '服务费'}</span>
-                    <span className="text-sm text-gray-800">{formatCurrency(order.totalPrice)}</span>
+                    <span className="text-sm text-gray-800">{formatCurrency(orderTotal)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500">已付定金</span>
-                    <span className="text-sm text-forest-600">-{formatCurrency(order.deposit)}</span>
+                    <span className="text-sm text-forest-600">-{formatCurrency(orderDeposit)}</span>
                   </div>
                 </div>
 
@@ -443,7 +457,7 @@ export default function OrderDetail() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">应付尾款</span>
                     <span className="text-xl font-bold text-brand-600">
-                      {formatCurrency(order.totalPrice - order.deposit)}
+                      {formatCurrency(orderBalance)}
                     </span>
                   </div>
                 </div>
@@ -451,7 +465,7 @@ export default function OrderDetail() {
                 <div className="bg-gradient-to-r from-brand-50/70 to-petal-50/50 rounded-xl p-4 border border-brand-100/30">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">订单总额</span>
-                    <span className="text-lg font-bold text-gray-900">{formatCurrency(order.totalPrice)}</span>
+                    <span className="text-lg font-bold text-gray-900">{formatCurrency(orderTotal)}</span>
                   </div>
                 </div>
               </Card>
