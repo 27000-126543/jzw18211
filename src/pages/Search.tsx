@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import type { ServiceType, PetSpecies } from '@/types';
-import { getServiceLabel } from '@/utils/format';
+import { getServiceLabel, getProviderName, getServiceDailyPrice, normalizeAcceptedPets } from '@/utils/format';
 import { cn } from '@/lib/utils';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -84,10 +84,10 @@ export default function SearchPage() {
       const lower = keyword.toLowerCase();
       result = result.filter(
         (p) =>
-          p.businessName.toLowerCase().includes(lower) ||
+          getProviderName(p).toLowerCase().includes(lower) ||
           p.address.toLowerCase().includes(lower) ||
-          p.city.toLowerCase().includes(lower) ||
-          p.description.toLowerCase().includes(lower)
+          (p.city || '').toLowerCase().includes(lower) ||
+          (p.description || '').toLowerCase().includes(lower)
       );
     }
 
@@ -98,9 +98,10 @@ export default function SearchPage() {
     }
 
     if (selectedPets.length > 0) {
-      result = result.filter((p) =>
-        selectedPets.some((pet) => p.acceptedPets.includes(pet))
-      );
+      result = result.filter((p) => {
+        const species = normalizeAcceptedPets((p as any).acceptedPets).species;
+        return selectedPets.some((pet) => species.includes(pet));
+      });
     }
 
     if (certifiedOnly) {
@@ -118,9 +119,8 @@ export default function SearchPage() {
     }
 
     const priceFiltered = result.filter((p) => {
-      const minServicePrice = Math.min(
-        ...p.services.map((s) => s.pricePerDay)
-      );
+      const prices = p.services.map((s) => getServiceDailyPrice(s)).filter((v) => v > 0);
+      const minServicePrice = prices.length > 0 ? Math.min(...prices) : 0;
       return minServicePrice >= minPrice && minServicePrice <= maxPrice;
     });
     result = priceFiltered;
@@ -131,8 +131,10 @@ export default function SearchPage() {
         break;
       case 'price_asc':
         result.sort((a, b) => {
-          const minA = Math.min(...a.services.map((s) => s.pricePerDay));
-          const minB = Math.min(...b.services.map((s) => s.pricePerDay));
+          const pricesA = a.services.map((s) => getServiceDailyPrice(s)).filter((v) => v > 0);
+          const pricesB = b.services.map((s) => getServiceDailyPrice(s)).filter((v) => v > 0);
+          const minA = pricesA.length > 0 ? Math.min(...pricesA) : 0;
+          const minB = pricesB.length > 0 ? Math.min(...pricesB) : 0;
           return minA - minB;
         });
         break;

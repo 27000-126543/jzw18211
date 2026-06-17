@@ -76,6 +76,19 @@ export default function OrderDetail() {
   const isProvider = currentUser?.role === 'provider';
   const isOwner = currentUser?.role === 'owner';
 
+  const currentProviderId = useMemo(() => {
+    if (!currentUser || !isProvider) return null;
+    return providers.find((p) => p.userId === currentUser.id)?.id || null;
+  }, [currentUser, isProvider, providers]);
+
+  const chatCurrentUserId = useMemo(() => {
+    if (!currentUser) return '';
+    if (isProvider && currentProviderId) {
+      return [currentUser.id, currentProviderId];
+    }
+    return currentUser.id;
+  }, [currentUser, isProvider, currentProviderId]);
+
   const handleAddUpdateImage = () => {
     if (updateImages.length >= 9) return;
     const placeholders = [
@@ -107,9 +120,10 @@ export default function OrderDetail() {
   const handleSendMessage = (content: string) => {
     if (!order || !currentUser) return;
     const receiverId = isOwner ? order.providerId : order.ownerId;
+    const senderId = isProvider ? (currentProviderId || currentUser.id) : currentUser.id;
     addMessage({
       orderId: order.id,
-      senderId: currentUser.id,
+      senderId,
       receiverId,
       content,
     });
@@ -286,7 +300,7 @@ export default function OrderDetail() {
                 <ChatWindow
                   conversationId={order.id}
                   messages={orderMessages as any}
-                  currentUserId={currentUser?.id || ''}
+                  currentUserId={chatCurrentUserId}
                   otherUser={chatOtherUser as any}
                   onSend={handleSendMessage}
                 />

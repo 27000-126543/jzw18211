@@ -82,6 +82,25 @@ export interface AppStore {
 
 const generateOrderNo = () => 'PB' + Date.now().toString().slice(-10);
 
+const STORAGE_KEY_MESSAGES = 'petboard_messages';
+
+const loadMessages = (): Message[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [...messages];
+};
+
+const saveMessages = (msgs: Message[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(msgs));
+  } catch {}
+};
+
 export const useAppStore = create<AppStore>((set, get) => ({
   currentUser: null,
   users: [...users],
@@ -90,7 +109,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   orders: [...orders],
   reviews: [...reviews],
   updates: [...updates],
-  messages: [...messages],
+  messages: loadMessages(),
 
   login: (userId: string) => {
     const foundUser = get().users.find((u) => u.id === userId) || null;
@@ -171,9 +190,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       receiverId: messageData.receiverId || '',
       read: false,
     };
-    set((state) => ({
-      messages: [...state.messages, newMessage],
-    }));
+    set((state) => {
+      const updated = [...state.messages, newMessage];
+      saveMessages(updated);
+      return { messages: updated };
+    });
     return newMessage;
   },
 

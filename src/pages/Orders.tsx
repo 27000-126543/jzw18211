@@ -17,7 +17,7 @@ import type { Order, OrderStatus, Provider, Pet } from '@/types';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import OrderCard from '@/components/order/OrderCard';
-import { getStatusLabel, getStatusColor } from '@/utils/format';
+import { getStatusLabel, getStatusColor, getProviderName } from '@/utils/format';
 import { cn } from '@/lib/utils';
 
 type OrderTabFilter =
@@ -109,7 +109,7 @@ export default function Orders() {
       result = result.filter((order) => {
         if (order.orderNo.toLowerCase().includes(keyword)) return true;
         const provider = providerMap.get(order.providerId);
-        if (provider?.name.toLowerCase().includes(keyword)) return true;
+        if (provider && getProviderName(provider).toLowerCase().includes(keyword)) return true;
         return false;
       });
     }

@@ -15,17 +15,25 @@ export default function Messages() {
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
 
+  const currentProviderId = useMemo(() => {
+    if (!currentUser) return null;
+    if (currentUser.role === 'provider') {
+      return providers.find((p) => p.userId === currentUser.id)?.id || null;
+    }
+    return null;
+  }, [currentUser, providers]);
+
   const conversations = useMemo<ConversationItem[]>(() => {
     if (!currentUser) return [];
 
     const orderGrouped: Record<string, { orderId: string; otherId: string; messages: any[] }> = {};
 
     messages.forEach((msg) => {
-      const isSender = msg.senderId === currentUser.id;
-      const isReceiver = msg.receiverId === currentUser.id;
+      const isSender = msg.senderId === currentUser.id || msg.senderId === currentProviderId;
+      const isReceiver = msg.receiverId === currentUser.id || msg.receiverId === currentProviderId;
       if (!isSender && !isReceiver) return;
 
-      const otherId = isSender ? msg.receiverId : msg.senderId;
+      const otherId = isSender ? (msg.receiverId || '') : msg.senderId;
       const msgWithOrder = msg as any;
       const orderId = msgWithOrder.orderId || `conv_${otherId}`;
 
@@ -45,7 +53,7 @@ export default function Messages() {
       );
       const lastMsg = sortedMsgs[sortedMsgs.length - 1];
       const unreadCount = sortedMsgs.filter(
-        (m) => m.receiverId === currentUser.id && !m.read
+        (m) => (m.receiverId === currentUser.id || m.receiverId === currentProviderId) && !m.read
       ).length;
 
       let otherUser: ConversationItem['otherUser'] = {
@@ -57,7 +65,7 @@ export default function Messages() {
       const isOwner = currentUser.role === 'owner';
 
       if (isOwner) {
-        const provider = providers.find((p) => p.id === group.otherId);
+        const provider = providers.find((p) => p.id === group.otherId || p.userId === group.otherId);
         if (provider) {
           const safe = toSafeProvider(provider);
           const pUser = users.find((u) => u.id === provider.userId || u.id === (provider as any).ownerId);
@@ -77,7 +85,7 @@ export default function Messages() {
             id: owner.id,
             name: owner.name,
             avatar: (owner as any)?.avatar || '',
-            online: Math.random() > 0.3,
+            online: true,
           };
         }
       } else {
@@ -108,7 +116,7 @@ export default function Messages() {
         lastTime: lastMsg?.createdAt || new Date().toISOString(),
       };
     }).filter(Boolean) as ConversationItem[];
-  }, [messages, orders, users, providers, currentUser, searchQuery]);
+  }, [messages, orders, users, providers, currentUser, currentProviderId, searchQuery]);
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
@@ -120,9 +128,11 @@ export default function Messages() {
 
   const handleSend = (content: string) => {
     if (!activeConversation || !currentUser) return;
+    const isProv = currentUser.role === 'provider';
+    const senderId = isProv ? (currentProviderId || currentUser.id) : currentUser.id;
     addMessage({
       orderId: activeConversation.orderId,
-      senderId: currentUser.id,
+      senderId,
       receiverId: activeConversation.otherUser.id,
       content,
     });
@@ -274,7 +284,7 @@ export default function Messages() {
                 <ChatWindow
                   conversationId={activeConversation.id}
                   messages={activeMessages as any}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentProviderId ? [currentUser.id, currentProviderId] : currentUser.id}
                   otherUser={activeConversation.otherUser as any}
                   onSend={handleSend}
                 />

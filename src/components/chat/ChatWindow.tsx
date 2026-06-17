@@ -22,7 +22,7 @@ interface ChatUser {
 interface ChatWindowProps {
   conversationId: string;
   messages: Message[];
-  currentUserId: string;
+  currentUserId: string | string[];
   otherUser?: ChatUser;
   onSend?: (content: string) => void;
 }
@@ -33,6 +33,7 @@ export default function ChatWindow({
   otherUser,
   onSend,
 }: ChatWindowProps) {
+  const currentUserIds = Array.isArray(currentUserId) ? currentUserId : [currentUserId];
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -141,7 +142,7 @@ export default function ChatWindow({
           </div>
         ) : (
           sortedMessages.map((msg, index) => {
-            const isSelf = msg.senderId === currentUserId;
+            const isSelf = currentUserIds.includes(msg.senderId);
             const prev = sortedMessages[index - 1];
             const showTime =
               !prev ||
